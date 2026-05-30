@@ -75,6 +75,8 @@ local CONFIG = {
     MaxDistance         = 200,   -- 0 = tak terbatas
     ShowDistance        = true,
     ShowLocalCharacter  = false,
+    -- Scan seluruh workspace (monster di-clone ke sini saat game berjalan)
+    -- ReplicatedStorage hanya tempat template, BUKAN objek aktif di dunia
     ScanTargets         = {workspace},
     UpdateInterval      = 0.05,
 }
@@ -524,3 +526,37 @@ print("  Toggle ESP        : F5")
 print("  Toggle Panel      : F6")
 print("  Stop & Cleanup    : _G.ESP_CLEANUP()")
 print("  Target Parts      : " .. #CONFIG.TargetNames .. " nama terdaftar")
+
+-- ════════════════════════════════════════
+--  DEBUG HELPER
+--  Jalankan _G.ESP_DEBUG() di console
+--  executor untuk cek apakah part target
+--  sudah spawn di workspace
+-- ════════════════════════════════════════
+_G.ESP_DEBUG = function()
+    print("══════════ ESP DEBUG ══════════")
+    local found = 0
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and isTarget(obj.Name) then
+            found += 1
+            print("  ✔ KETEMU → " .. obj.Name .. " | " .. obj:GetFullName())
+        end
+    end
+    if found == 0 then
+        print("  ✘ Tidak ada part target ditemukan di workspace.")
+        print("  Kemungkinan: monster belum spawn / nama tidak cocok.")
+        print("  50 BasePart pertama di workspace:")
+        local c = 0
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                print("    → [" .. obj.Name .. "]  " .. obj:GetFullName())
+                c += 1
+                if c >= 50 then print("    ... (truncated)") break end
+            end
+        end
+    else
+        print("  Total ditemukan: " .. found .. " part")
+    end
+    print("═══════════════════════════════")
+end
+print("  Debug cek part    : _G.ESP_DEBUG()")

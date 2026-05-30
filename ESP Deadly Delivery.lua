@@ -1,6 +1,6 @@
 -- ================================================================
 --   ESP Framework Core & Auto-Collect
---   Version : 6.0.0 (Auto-Collect FoodGathering)
+--   Version : 6.1.0 (Auto-Collect FoodGathering Path Update)
 -- ================================================================
 
 if _G.ESP_RUNNING then
@@ -20,7 +20,7 @@ local CONFIG = {
     Monster = { Paths = {{"GameSystem", "Monsters"}}, Color = Color3.fromRGB(255, 50, 50) },
     Loot = { Paths = {{"GameSystem", "Loots", "World"}, {"GameSystem", "InteractiveItem"}}, Color = Color3.fromRGB(50, 255, 50) },
     NPC = { Paths = {{"GameSystem", "NPCModels"}}, Color = Color3.fromRGB(50, 100, 255) },
-    MaxBackpackItems = 5 -- Ubah angka ini sesuai batas maksimal tas di gim
+    MaxBackpackItems = 50
 }
 
 local State = { Monster = true, Loot = true, NPC = true, AutoCollect = false, UI = true }
@@ -79,20 +79,18 @@ local function triggerAutoCollect()
     end
 
     local initialCFrame = hrp.CFrame
-    local lootFolder = getPath(CONFIG.Loot.Paths[1])
+    local elevatorFolder = workspace:FindFirstChild("电梯")
 
-    if lootFolder then
-        for _, loot in ipairs(lootFolder:GetChildren()) do
+    if elevatorFolder then
+        for _, loot in ipairs(elevatorFolder:GetChildren()) do
             if not State.AutoCollect then break end
             
-            -- Mencari FoodGathering
             if loot.Name == "FoodGathering" or loot:FindFirstChild("FoodGathering") then
                 local pivot = loot:GetPivot()
                 
                 hrp.CFrame = pivot
-                task.wait(0.3) -- Jeda agar peladen (server) mencatat perpindahan
+                task.wait(0.3) 
                 
-                -- Pemicu otomatis jika ada ProximityPrompt (pemicu kedekatan)
                 for _, prompt in ipairs(loot:GetDescendants()) do
                     if prompt:IsA("ProximityPrompt") then
                         fireproximityprompt(prompt)
@@ -109,7 +107,6 @@ local function triggerAutoCollect()
         end
     end
 
-    -- Kembali ke posisi awal
     if hrp then
         hrp.CFrame = initialCFrame
     end
@@ -196,7 +193,7 @@ minBtn.Size, minBtn.Position, minBtn.BackgroundColor3, minBtn.TextColor3, minBtn
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
 
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 48), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster | F6: Loot / Item\nF7: NPC | F8: Hide UI\nF9: Auto Collect (Kumpul Otomatis)", Enum.TextXAlignment.Left, panel
+infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 48), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster | F6: Loot / Item\nF7: NPC | F8: Hide UI\nF9: Auto Collect", Enum.TextXAlignment.Left, panel
 
 local btnMonster = createButton("ToggleMonster", "MONSTER: ON", UDim2.new(0, 10, 0, 88), panel, CONFIG.Monster.Color)
 local btnLoot = createButton("ToggleLoot", "LOOT & ITEM: ON", UDim2.new(0, 10, 0, 122), panel, CONFIG.Loot.Color)
@@ -228,7 +225,7 @@ local function toggleAutoCollect()
     if State.AutoCollect then
         task.spawn(function()
             triggerAutoCollect()
-            updateUI() -- Perbarui antarmuka setelah fungsi selesai
+            updateUI() 
         end)
     end
 end

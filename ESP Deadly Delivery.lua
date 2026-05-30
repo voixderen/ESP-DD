@@ -1,6 +1,6 @@
 -- ================================================================
 --   ESP Framework Core & Auto-Collect
---   Version : 6.1.0 (Auto-Collect FoodGathering Path Update)
+--   Version : 6.2.0
 -- ================================================================
 
 if _G.ESP_RUNNING then
@@ -82,12 +82,12 @@ local function triggerAutoCollect()
     local elevatorFolder = workspace:FindFirstChild("电梯")
 
     if elevatorFolder then
-        for _, loot in ipairs(elevatorFolder:GetChildren()) do
-            if not State.AutoCollect then break end
-            
-            if loot.Name == "FoodGathering" or loot:FindFirstChild("FoodGathering") then
-                local pivot = loot:GetPivot()
+        local foodGathering = elevatorFolder:FindFirstChild("FoodGathering")
+        if foodGathering then
+            for _, loot in ipairs(foodGathering:GetChildren()) do
+                if not State.AutoCollect then break end
                 
+                local pivot = loot:GetPivot()
                 hrp.CFrame = pivot
                 task.wait(0.3) 
                 

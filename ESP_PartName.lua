@@ -1,13 +1,10 @@
 -- ================================================================
---   ESP Part Name Script  [EXECUTOR EDITION]
---   Version : 3.0.0 (Highlight & Model-Based)
---   Scan    : workspace -> Game System -> Monster (live folder)
---
---   Kompatibel dengan: Synapse X, KRNL, Script-Ware, Fluxus, dll.
+--   ESP Framework Core  [EXECUTOR EDITION]
+--   Version : 4.5.0 (Dual Feature & UI Integrated)
 -- ================================================================
 
 if _G.ESP_RUNNING then
-    warn("[ESP] Script sudah berjalan, memuat ulang...")
+    warn("[ESP] Framework sudah berjalan, memuat ulang...")
     if _G.ESP_CLEANUP then _G.ESP_CLEANUP() end
 end
 _G.ESP_RUNNING = true
@@ -24,36 +21,31 @@ local Camera           = workspace.CurrentCamera
 local LocalPlayer      = Players.LocalPlayer
 
 -- ════════════════════════════════════════
---  KONFIGURASI
+--  KONFIGURASI DATA & FOLDER
 -- ════════════════════════════════════════
 local CONFIG = {
-    MonsterFolderPath = {"GameSystem", "Monsters"},
-
-    -- Label ESP
-    TextSize            = 14,
-    TextColor           = Color3.fromRGB(255, 255, 255),
-    OutlineColor        = Color3.fromRGB(0, 0, 0),
-    LabelBgColor        = Color3.fromRGB(0, 0, 0),
-    LabelBgTransparency = 0.5,
-
-    -- Highlight ESP
-    FillColor           = Color3.fromRGB(255, 0, 0),
-    FillTransparency    = 0.5,
-    OutlineColorHighlight = Color3.fromRGB(255, 0, 0),
-    OutlineTransparency = 0,
-
-    MaxDistance         = 200,  -- 0 = tak terbatas
-    ShowLocalCharacter  = false,
-    UpdateInterval      = 0.05,
+    Monster = {
+        Path = {"GameSystem", "Monsters"},
+        FillColor = Color3.fromRGB(255, 50, 50),
+        OutlineColor = Color3.fromRGB(255, 50, 50),
+        MaxDistance = 200,
+    },
+    Loot = {
+        Path = {"GameSystem", "Loots", "World"},
+        FillColor = Color3.fromRGB(50, 255, 50),
+        OutlineColor = Color3.fromRGB(255, 255, 50),
+        MaxDistance = 500,
+    }
 }
 
 -- ════════════════════════════════════════
 --  STATE
 -- ════════════════════════════════════════
-local espObjects   = {}
-local espEnabled   = true
-local panelVisible = true
-local connections  = {}
+local espMonsterEnabled = true
+local espLootEnabled    = true
+local panelVisible      = true
+local connections       = {}
+local espRegistry       = {}
 
 -- ════════════════════════════════════════
 --  HELPERS
@@ -63,18 +55,13 @@ local function getGuiParent()
     return (ok and result) or LocalPlayer:WaitForChild("PlayerGui")
 end
 
-local function getMonsterFolder()
+local function resolvePath(pathTable)
     local current = workspace
-    for _, name in ipairs(CONFIG.MonsterFolderPath) do
+    for _, name in ipairs(pathTable) do
         current = current:FindFirstChild(name)
         if not current then return nil end
     end
     return current
-end
-
-local function isLocalChar(model)
-    local char = LocalPlayer.Character
-    return char and model == char or false
 end
 
 local function getMainPart(model)
@@ -84,44 +71,54 @@ local function getMainPart(model)
 end
 
 -- ════════════════════════════════════════
---  ESP CREATION & REMOVAL
+--  ESP MANAGEMENT
 -- ════════════════════════════════════════
-local function createESP(model)
+local function removeESP(model, registryData)
+    local data = registryData.Objects[model]
+    if data then
+        pcall(function()
+            if data.Highlight then data.Highlight:Destroy() end
+            if data.Label then data.Label:Destroy() end
+        end)
+        registryData.Objects[model] = nil
+    end
+end
+
+local function createESP(model, config, category)
     local mainPart = getMainPart(model)
     if not mainPart then return nil end
 
     local data = {}
+    local currentGlobalState = (category == "Monster" and espMonsterEnabled) or espLootEnabled
 
-    -- 1. Buat Highlight untuk Model
     local okHighlight, hl = pcall(function()
         local h = Instance.new("Highlight")
         h.Name                = "ESP_Highlight"
-        h.FillColor           = CONFIG.FillColor
-        h.FillTransparency    = CONFIG.FillTransparency
-        h.OutlineColor        = CONFIG.OutlineColorHighlight
-        h.OutlineTransparency = CONFIG.OutlineTransparency
+        h.FillColor           = config.FillColor
+        h.FillTransparency    = 0.5
+        h.OutlineColor        = config.OutlineColor
+        h.OutlineTransparency = 0
         h.Adornee             = model
-        h.Enabled             = espEnabled
+        h.Enabled             = currentGlobalState
         h.Parent              = CoreGui
         return h
     end)
     if okHighlight then data.Highlight = hl end
 
-    -- 2. Buat BillboardGui Label di Main Part
     local okLabel, bb = pcall(function()
         local b = Instance.new("BillboardGui")
         b.Name           = "ESP_Label"
         b.AlwaysOnTop    = true
-        b.MaxDistance    = CONFIG.MaxDistance > 0 and CONFIG.MaxDistance or math.huge
+        b.MaxDistance    = config.MaxDistance > 0 and config.MaxDistance or math.huge
         b.StudsOffset    = Vector3.new(0, 3, 0)
         b.Size           = UDim2.new(0, 130, 0, 34)
         b.LightInfluence = 0
-        b.Enabled        = espEnabled
+        b.Enabled        = currentGlobalState
 
         local frame = Instance.new("Frame")
         frame.Size                   = UDim2.new(1, 0, 1, 0)
-        frame.BackgroundColor3       = CONFIG.LabelBgColor
-        frame.BackgroundTransparency = CONFIG.LabelBgTransparency
+        frame.BackgroundColor3       = Color3.fromRGB(0, 0, 0)
+        frame.BackgroundTransparency = 0.5
         frame.BorderSizePixel        = 0
         frame.Parent                 = b
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 4)
@@ -130,10 +127,10 @@ local function createESP(model)
         lbl.Name                   = "NameLabel"
         lbl.Size                   = UDim2.new(1, 0, 1, 0)
         lbl.BackgroundTransparency = 1
-        lbl.TextColor3             = CONFIG.TextColor
-        lbl.TextStrokeColor3       = CONFIG.OutlineColor
+        lbl.TextColor3             = Color3.fromRGB(255, 255, 255)
+        lbl.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
         lbl.TextStrokeTransparency = 0
-        lbl.TextSize               = CONFIG.TextSize
+        lbl.TextSize               = 14
         lbl.Font                   = Enum.Font.GothamBold
         lbl.Text                   = model.Name
         lbl.Parent                 = frame
@@ -147,79 +144,88 @@ local function createESP(model)
     return data
 end
 
-local function removeESP(model)
-    local data = espObjects[model]
-    if data then
-        pcall(function()
-            if data.Highlight then data.Highlight:Destroy() end
-            if data.Label then data.Label:Destroy() end
-        end)
-        espObjects[model] = nil
-    end
+local function registerFolderESP(category, pathTable, config)
+    local registryData = {
+        Category = category,
+        Path = pathTable,
+        Config = config,
+        Objects = {},
+        ActiveFolder = nil
+    }
+    espRegistry[category] = registryData
 end
 
-local function scanAndLabel()
-    local folder = getMonsterFolder()
-
-    for model in pairs(espObjects) do
-        if not model or not model.Parent then
-            removeESP(model)
+local function scanRegistry()
+    for category, registryData in pairs(espRegistry) do
+        local currentFolder = resolvePath(registryData.Path)
+        
+        if currentFolder ~= registryData.ActiveFolder then
+            for model in pairs(registryData.Objects) do
+                removeESP(model, registryData)
+            end
+            registryData.ActiveFolder = currentFolder
         end
-    end
 
-    if not folder then return end
+        for model in pairs(registryData.Objects) do
+            if not model or not model.Parent then
+                removeESP(model, registryData)
+            end
+        end
 
-    -- Scan direct children (tiap child = 1 monster)
-    for _, obj in ipairs(folder:GetChildren()) do
-        if not espObjects[obj] then
-            if CONFIG.ShowLocalCharacter or not isLocalChar(obj) then
-                local data = createESP(obj)
-                if data then espObjects[obj] = data end
+        if currentFolder then
+            for _, child in ipairs(currentFolder:GetChildren()) do
+                if not registryData.Objects[child] then
+                    local data = createESP(child, registryData.Config, category)
+                    if data then registryData.Objects[child] = data end
+                end
             end
         end
     end
 end
 
-local function updateLabels()
-    local camPos = Camera.CFrame.Position
-    for model, data in pairs(espObjects) do
-        if not model or not model.Parent then
-            removeESP(model)
-        else
-            pcall(function()
-                local mainPart = getMainPart(model)
-                if mainPart and data.Label and data.Highlight then
-                    local dist = (mainPart.Position - camPos).Magnitude
-                    local inRange = CONFIG.MaxDistance == 0 or dist <= CONFIG.MaxDistance
+local function updateESPVisibility()
+    for category, registryData in pairs(espRegistry) do
+        local camPos = Camera.CFrame.Position
+        local globalState = (category == "Monster" and espMonsterEnabled) or espLootEnabled
+        
+        for model, data in pairs(registryData.Objects) do
+            if model and model.Parent then
+                pcall(function()
+                    local mainPart = getMainPart(model)
+                    if mainPart and data.Label and data.Highlight then
+                        local dist = (mainPart.Position - camPos).Magnitude
+                        local maxDist = registryData.Config.MaxDistance
+                        local inRange = maxDist == 0 or dist <= maxDist
 
-                    data.Label.Enabled = espEnabled and inRange
-                    data.Highlight.Enabled = espEnabled and inRange
-
-                    if data.Label.Adornee ~= mainPart then
-                        data.Label.Adornee = mainPart
+                        data.Label.Enabled = globalState and inRange
+                        data.Highlight.Enabled = globalState and inRange
                     end
-                else
-                    if data.Label then data.Label.Enabled = false end
-                    if data.Highlight then data.Highlight.Enabled = false end
-                end
-            end)
+                end)
+            end
         end
     end
 end
 
-local function setESP(state)
-    espEnabled = state
-    for _, data in pairs(espObjects) do
-        pcall(function()
-            if data.Highlight then data.Highlight.Enabled = espEnabled end
-            if data.Label then data.Label.Enabled = espEnabled end
-        end)
-    end
+-- ════════════════════════════════════════
+--  UI PANEL SETUP
+-- ════════════════════════════════════════
+local function createButton(name, text, pos, parent, color)
+    local btn = Instance.new("TextButton")
+    btn.Name             = name
+    btn.Size             = UDim2.new(1, -20, 0, 28)
+    btn.Position         = pos
+    btn.BackgroundColor3 = color
+    btn.TextColor3       = Color3.fromRGB(255, 255, 255)
+    btn.TextSize         = 13
+    btn.Font             = Enum.Font.GothamBold
+    btn.Text             = text
+    btn.BorderSizePixel  = 0
+    btn.AutoButtonColor  = false
+    btn.Parent           = parent
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 7)
+    return btn
 end
 
--- ════════════════════════════════════════
---  UI PANEL
--- ════════════════════════════════════════
 local function buildUI()
     pcall(function()
         local old = getGuiParent():FindFirstChild("ESP_UI")
@@ -230,16 +236,12 @@ local function buildUI()
     ScreenGui.Name           = "ESP_UI"
     ScreenGui.ResetOnSpawn   = false
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-    local parentOk = pcall(function() ScreenGui.Parent = CoreGui end)
-    if not parentOk then
-        ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    end
+    ScreenGui.Parent         = getGuiParent()
 
     local Panel = Instance.new("Frame")
     Panel.Name             = "Panel"
-    Panel.Size             = UDim2.new(0, 220, 0, 140)
-    Panel.Position         = UDim2.new(0, 20, 0.5, -70)
+    Panel.Size             = UDim2.new(0, 220, 0, 160)
+    Panel.Position         = UDim2.new(0, 20, 0.5, -80)
     Panel.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
     Panel.BorderSizePixel  = 0
     Panel.Active           = true
@@ -247,7 +249,7 @@ local function buildUI()
     Instance.new("UICorner", Panel).CornerRadius = UDim.new(0, 10)
 
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 80, 80)
+    stroke.Color = Color3.fromRGB(120, 120, 140)
     stroke.Thickness = 1.5
     stroke.Transparency = 0.4
     stroke.Parent = Panel
@@ -255,7 +257,7 @@ local function buildUI()
     local TitleBar = Instance.new("Frame")
     TitleBar.Name             = "TitleBar"
     TitleBar.Size             = UDim2.new(1, 0, 0, 32)
-    TitleBar.BackgroundColor3 = Color3.fromRGB(40, 28, 28)
+    TitleBar.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
     TitleBar.BorderSizePixel  = 0
     TitleBar.Parent           = Panel
     Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 10)
@@ -263,7 +265,7 @@ local function buildUI()
     local tbPatch = Instance.new("Frame")
     tbPatch.Size             = UDim2.new(1, 0, 0, 10)
     tbPatch.Position         = UDim2.new(0, 0, 1, -10)
-    tbPatch.BackgroundColor3 = Color3.fromRGB(40, 28, 28)
+    tbPatch.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
     tbPatch.BorderSizePixel  = 0
     tbPatch.Parent           = TitleBar
 
@@ -271,10 +273,10 @@ local function buildUI()
     TitleLabel.Size                   = UDim2.new(1, -40, 1, 0)
     TitleLabel.Position               = UDim2.new(0, 12, 0, 0)
     TitleLabel.BackgroundTransparency = 1
-    TitleLabel.TextColor3             = Color3.fromRGB(255, 200, 200)
+    TitleLabel.TextColor3             = Color3.fromRGB(220, 220, 230)
     TitleLabel.TextSize               = 13
     TitleLabel.Font                   = Enum.Font.GothamBold
-    TitleLabel.Text                   = "⬡  ESP Monster v3"
+    TitleLabel.Text                   = "⬡  ESP Multi-Folder"
     TitleLabel.TextXAlignment         = Enum.TextXAlignment.Left
     TitleLabel.Parent                 = TitleBar
 
@@ -290,101 +292,58 @@ local function buildUI()
     MinBtn.Parent           = TitleBar
     Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
 
-    local StatusLabel = Instance.new("TextLabel")
-    StatusLabel.Size                   = UDim2.new(1, -20, 0, 20)
-    StatusLabel.Position               = UDim2.new(0, 10, 0, 38)
-    StatusLabel.BackgroundTransparency = 1
-    StatusLabel.TextColor3             = Color3.fromRGB(100, 220, 130)
-    StatusLabel.TextSize               = 12
-    StatusLabel.Font                   = Enum.Font.Gotham
-    StatusLabel.Text                   = "● Status: ACTIVE"
-    StatusLabel.TextXAlignment         = Enum.TextXAlignment.Left
-    StatusLabel.Parent                 = Panel
+    local InfoLabel = Instance.new("TextLabel")
+    InfoLabel.Size                   = UDim2.new(1, -20, 0, 34)
+    InfoLabel.Position               = UDim2.new(0, 10, 0, 36)
+    InfoLabel.BackgroundTransparency = 1
+    InfoLabel.TextColor3             = Color3.fromRGB(150, 150, 160)
+    InfoLabel.TextSize               = 10
+    InfoLabel.Font                   = Enum.Font.Gotham
+    InfoLabel.Text                   = "F5: Toggle Monster  |  F6: Toggle Loot\nF7: Sembunyikan Panel"
+    InfoLabel.TextXAlignment         = Enum.TextXAlignment.Left
+    InfoLabel.Parent                 = Panel
 
-    local FolderLabel = Instance.new("TextLabel")
-    FolderLabel.Size                   = UDim2.new(1, -20, 0, 16)
-    FolderLabel.Position               = UDim2.new(0, 10, 0, 58)
-    FolderLabel.BackgroundTransparency = 1
-    FolderLabel.TextColor3             = Color3.fromRGB(160, 160, 190)
-    FolderLabel.TextSize               = 10
-    FolderLabel.Font                   = Enum.Font.Gotham
-    FolderLabel.Text                   = "Folder: menunggu game..."
-    FolderLabel.TextXAlignment         = Enum.TextXAlignment.Left
-    FolderLabel.Parent                 = Panel
+    local ToggleMonsterBtn = createButton("ToggleMonster", "MONSTER: ON", UDim2.new(0, 10, 0, 80), Panel, CONFIG.Monster.FillColor)
+    local ToggleLootBtn    = createButton("ToggleLoot", "LOOT: ON", UDim2.new(0, 10, 0, 116), Panel, CONFIG.Loot.FillColor)
 
-    local CountLabel = Instance.new("TextLabel")
-    CountLabel.Size                   = UDim2.new(1, -20, 0, 16)
-    CountLabel.Position               = UDim2.new(0, 10, 0, 74)
-    CountLabel.BackgroundTransparency = 1
-    CountLabel.TextColor3             = Color3.fromRGB(160, 160, 190)
-    CountLabel.TextSize               = 11
-    CountLabel.Font                   = Enum.Font.Gotham
-    CountLabel.Text                   = "Monster terdeteksi: 0"
-    CountLabel.TextXAlignment         = Enum.TextXAlignment.Left
-    CountLabel.Parent                 = Panel
-
-    local HintLabel = Instance.new("TextLabel")
-    HintLabel.Size                   = UDim2.new(1, -20, 0, 14)
-    HintLabel.Position               = UDim2.new(0, 10, 0, 90)
-    HintLabel.BackgroundTransparency = 1
-    HintLabel.TextColor3             = Color3.fromRGB(100, 100, 130)
-    HintLabel.TextSize         = 10
-    HintLabel.Font                   = Enum.Font.Gotham
-    HintLabel.Text                   = "Toggle: F5  |  Hide panel: F6"
-    HintLabel.TextXAlignment         = Enum.TextXAlignment.Left
-    HintLabel.Parent                 = Panel
-
-    local ToggleBtn = Instance.new("TextButton")
-    ToggleBtn.Name             = "ToggleBtn"
-    ToggleBtn.Size             = UDim2.new(1, -20, 0, 28)
-    ToggleBtn.Position         = UDim2.new(0, 10, 0, 106)
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    ToggleBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
-    ToggleBtn.TextSize         = 13
-    ToggleBtn.Font             = Enum.Font.GothamBold
-    ToggleBtn.Text             = "ESP  ON"
-    ToggleBtn.BorderSizePixel  = 0
-    ToggleBtn.AutoButtonColor  = false
-    ToggleBtn.Parent           = Panel
-    Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 7)
+    local function animateButton(btn, targetSize, targetPos)
+        TweenService:Create(btn, TweenInfo.new(0.08), {Size = targetSize, Position = targetPos}):Play()
+    end
 
     table.insert(connections, RunService.RenderStepped:Connect(function()
         pcall(function()
-            local count = 0
-            for _ in pairs(espObjects) do count += 1 end
-            CountLabel.Text = "Monster terdeteksi: " .. count
-
-            local folder = getMonsterFolder()
-            if folder then
-                FolderLabel.Text      = "✔ Folder ditemukan"
-                FolderLabel.TextColor3 = Color3.fromRGB(100, 220, 130)
+            if espMonsterEnabled then
+                ToggleMonsterBtn.Text = "MONSTER ESP: ON"
+                ToggleMonsterBtn.BackgroundColor3 = CONFIG.Monster.FillColor
             else
-                FolderLabel.Text      = "⏳ Menunggu game dimulai..."
-                FolderLabel.TextColor3 = Color3.fromRGB(200, 160, 60)
+                ToggleMonsterBtn.Text = "MONSTER ESP: OFF"
+                ToggleMonsterBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
             end
 
-            if espEnabled then
-                StatusLabel.Text             = "● Status: ACTIVE"
-                StatusLabel.TextColor3       = Color3.fromRGB(100, 220, 130)
-                ToggleBtn.Text               = "ESP  ON"
-                ToggleBtn.BackgroundColor3   = Color3.fromRGB(255, 50, 50)
+            if espLootEnabled then
+                ToggleLootBtn.Text = "LOOT ESP: ON"
+                ToggleLootBtn.BackgroundColor3 = CONFIG.Loot.FillColor
             else
-                StatusLabel.Text             = "● Status: OFF"
-                StatusLabel.TextColor3       = Color3.fromRGB(200, 80, 80)
-                ToggleBtn.Text               = "ESP  OFF"
-                ToggleBtn.BackgroundColor3   = Color3.fromRGB(80, 80, 100)
+                ToggleLootBtn.Text = "LOOT ESP: OFF"
+                ToggleLootBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
             end
         end)
     end))
 
-    ToggleBtn.MouseButton1Click:Connect(function()
-        setESP(not espEnabled)
-        local tweenIn = TweenService:Create(ToggleBtn, TweenInfo.new(0.08),
-            {Size = UDim2.new(1, -28, 0, 24), Position = UDim2.new(0, 12, 0, 108)})
-        local tweenOut = TweenService:Create(ToggleBtn, TweenInfo.new(0.1),
-            {Size = UDim2.new(1, -20, 0, 28), Position = UDim2.new(0, 10, 0, 106)})
-        tweenIn:Play()
-        tweenIn.Completed:Once(function() tweenOut:Play() end)
+    ToggleMonsterBtn.MouseButton1Click:Connect(function()
+        espMonsterEnabled = not espMonsterEnabled
+        updateESPVisibility()
+        animateButton(ToggleMonsterBtn, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 82))
+        task.wait(0.08)
+        animateButton(ToggleMonsterBtn, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 80))
+    end)
+
+    ToggleLootBtn.MouseButton1Click:Connect(function()
+        espLootEnabled = not espLootEnabled
+        updateESPVisibility()
+        animateButton(ToggleLootBtn, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 118))
+        task.wait(0.08)
+        animateButton(ToggleLootBtn, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 116))
     end)
 
     MinBtn.MouseButton1Click:Connect(function()
@@ -394,22 +353,18 @@ local function buildUI()
 
     local dragging, dragStart, startPos = false, nil, nil
     TitleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true; dragStart = input.Position; startPos = Panel.Position
         end
     end)
     table.insert(connections, UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch) then
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local d = input.Position - dragStart
-            Panel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
-                                       startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            Panel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
         end
     end))
     table.insert(connections, UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
     end))
@@ -423,16 +378,16 @@ end
 table.insert(connections, UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.F5 then
-        setESP(not espEnabled)
-        print("[ESP] " .. (espEnabled and "ON ✔" or "OFF ✘"))
+        espMonsterEnabled = not espMonsterEnabled
+        updateESPVisibility()
     elseif input.KeyCode == Enum.KeyCode.F6 then
+        espLootEnabled = not espLootEnabled
+        updateESPVisibility()
+    elseif input.KeyCode == Enum.KeyCode.F7 then
         panelVisible = not panelVisible
         pcall(function()
             local ui = getGuiParent():FindFirstChild("ESP_UI")
-            if ui then
-                local p = ui:FindFirstChild("Panel")
-                if p then p.Visible = panelVisible end
-            end
+            if ui then ui.Panel.Visible = panelVisible end
         end)
     end
 end))
@@ -440,17 +395,14 @@ end))
 -- ════════════════════════════════════════
 --  MAIN LOOP
 -- ════════════════════════════════════════
-local lastScan, lastUpdate = 0, 0
+local lastScan = 0
 table.insert(connections, RunService.RenderStepped:Connect(function()
     local now = tick()
     if now - lastScan >= 0.5 then
-        pcall(scanAndLabel)
+        scanRegistry()
         lastScan = now
     end
-    if now - lastUpdate >= CONFIG.UpdateInterval then
-        pcall(updateLabels)
-        lastUpdate = now
-    end
+    updateESPVisibility()
 end))
 
 -- ════════════════════════════════════════
@@ -461,41 +413,28 @@ _G.ESP_CLEANUP = function()
         pcall(function() conn:Disconnect() end)
     end
     connections = {}
-    for model in pairs(espObjects) do removeESP(model) end
+    
+    for _, registryData in pairs(espRegistry) do
+        for model in pairs(registryData.Objects) do 
+            removeESP(model, registryData) 
+        end
+    end
+    espRegistry = {}
+    
     pcall(function()
         local ui = getGuiParent():FindFirstChild("ESP_UI")
         if ui then ui:Destroy() end
     end)
+    
     _G.ESP_RUNNING = false
-    print("[ESP] Dihentikan.")
-end
-
-table.insert(connections, LocalPlayer.CharacterRemoving:Connect(function()
-    for model in pairs(espObjects) do removeESP(model) end
-end))
-
--- ════════════════════════════════════════
---  DEBUG HELPER
--- ════════════════════════════════════════
-_G.ESP_DEBUG = function()
-    print("══════════ ESP DEBUG ══════════")
-    local folder = getMonsterFolder()
-    if not folder then
-        print("  ✘ Folder tidak ditemukan.")
-    else
-        print("  ✔ Folder ditemukan: " .. folder:GetFullName())
-        local count = 0
-        for _, obj in ipairs(folder:GetChildren()) do
-            print("    Monster Model → [" .. obj.Name .. "]")
-            count += 1
-        end
-        print("  Total Model Monster: " .. count)
-    end
-    print("═══════════════════════════════")
+    print("[ESP] Semua fitur dinonaktifkan dan dibersihkan.")
 end
 
 -- ════════════════════════════════════════
---  INIT
+--  INIT & RUN
 -- ════════════════════════════════════════
+registerFolderESP("Monster", CONFIG.Monster.Path, CONFIG.Monster)
+registerFolderESP("Loot", CONFIG.Loot.Path, CONFIG.Loot)
+
 buildUI()
-print("[ESP Monster v3.0.0] Aktif!")
+print("[ESP Dual Framework] Berhasil dijalankan!")

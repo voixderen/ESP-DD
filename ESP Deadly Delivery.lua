@@ -1,6 +1,6 @@
 -- ================================================================
---   ESP Framework Core
---   Version : 5.3.0 (Stable)
+--   ESP Framework Core & Auto-Collect
+--   Version : 6.0.0 (Auto-Collect FoodGathering)
 -- ================================================================
 
 if _G.ESP_RUNNING then
@@ -19,10 +19,11 @@ local LocalPlayer = Players.LocalPlayer
 local CONFIG = {
     Monster = { Paths = {{"GameSystem", "Monsters"}}, Color = Color3.fromRGB(255, 50, 50) },
     Loot = { Paths = {{"GameSystem", "Loots", "World"}, {"GameSystem", "InteractiveItem"}}, Color = Color3.fromRGB(50, 255, 50) },
-    NPC = { Paths = {{"GameSystem", "NPCModels"}}, Color = Color3.fromRGB(50, 100, 255) }
+    NPC = { Paths = {{"GameSystem", "NPCModels"}}, Color = Color3.fromRGB(50, 100, 255) },
+    MaxBackpackItems = 5 -- Ubah angka ini sesuai batas maksimal tas di gim
 }
 
-local State = { Monster = true, Loot = true, NPC = true, UI = true }
+local State = { Monster = true, Loot = true, NPC = true, AutoCollect = false, UI = true }
 local MAX_DISTANCE = 1500
 local MAX_HIGHLIGHTS = 30
 local highlightPool = {}
@@ -61,6 +62,60 @@ local function getPart(model)
     return model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildWhichIsA("BasePart")
 end
 
+local function isBackpackFull()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        return #backpack:GetChildren() >= CONFIG.MaxBackpackItems
+    end
+    return false
+end
+
+local function triggerAutoCollect()
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then 
+        State.AutoCollect = false
+        return 
+    end
+
+    local initialCFrame = hrp.CFrame
+    local lootFolder = getPath(CONFIG.Loot.Paths[1])
+
+    if lootFolder then
+        for _, loot in ipairs(lootFolder:GetChildren()) do
+            if not State.AutoCollect then break end
+            
+            -- Mencari FoodGathering
+            if loot.Name == "FoodGathering" or loot:FindFirstChild("FoodGathering") then
+                local pivot = loot:GetPivot()
+                
+                hrp.CFrame = pivot
+                task.wait(0.3) -- Jeda agar peladen (server) mencatat perpindahan
+                
+                -- Pemicu otomatis jika ada ProximityPrompt (pemicu kedekatan)
+                for _, prompt in ipairs(loot:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") then
+                        fireproximityprompt(prompt)
+                        task.wait(0.2)
+                    end
+                end
+
+                task.wait(0.2)
+
+                if isBackpackFull() then
+                    break
+                end
+            end
+        end
+    end
+
+    -- Kembali ke posisi awal
+    if hrp then
+        hrp.CFrame = initialCFrame
+    end
+    State.AutoCollect = false
+end
+
 local function updateESP()
     local cam = workspace.CurrentCamera
     if not cam then return end
@@ -69,7 +124,7 @@ local function updateESP()
     local targets = {}
 
     for key, configData in pairs(CONFIG) do
-        if State[key] then
+        if State[key] and type(configData) == "table" and configData.Paths then
             for _, path in ipairs(configData.Paths) do
                 local folder = getPath(path)
                 if folder then
@@ -120,7 +175,7 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Name, screenGui.ResetOnSpawn, screenGui.ZIndexBehavior, screenGui.Parent = "ESP_UI", false, Enum.ZIndexBehavior.Sibling, guiParent
 
 local panel = Instance.new("Frame")
-panel.Name, panel.Size, panel.Position, panel.BackgroundColor3, panel.BorderSizePixel, panel.Active, panel.Parent = "Panel", UDim2.new(0, 240, 0, 190), UDim2.new(0, 20, 0.5, -95), Color3.fromRGB(18, 18, 24), 0, true, screenGui
+panel.Name, panel.Size, panel.Position, panel.BackgroundColor3, panel.BorderSizePixel, panel.Active, panel.Parent = "Panel", UDim2.new(0, 240, 0, 255), UDim2.new(0, 20, 0.5, -127), Color3.fromRGB(18, 18, 24), 0, true, screenGui
 Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 10)
 
 local stroke = Instance.new("UIStroke")
@@ -141,11 +196,13 @@ minBtn.Size, minBtn.Position, minBtn.BackgroundColor3, minBtn.TextColor3, minBtn
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
 
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 34), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster | F6: Loot / Item\nF7: NPC | F8: Hide UI", Enum.TextXAlignment.Left, panel
+infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 48), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster | F6: Loot / Item\nF7: NPC | F8: Hide UI\nF9: Auto Collect (Kumpul Otomatis)", Enum.TextXAlignment.Left, panel
 
-local btnMonster = createButton("ToggleMonster", "MONSTER: ON", UDim2.new(0, 10, 0, 76), panel, CONFIG.Monster.Color)
-local btnLoot = createButton("ToggleLoot", "LOOT & ITEM: ON", UDim2.new(0, 10, 0, 110), panel, CONFIG.Loot.Color)
-local btnNPC = createButton("ToggleNPC", "NPC: ON", UDim2.new(0, 10, 0, 144), panel, CONFIG.NPC.Color)
+local btnMonster = createButton("ToggleMonster", "MONSTER: ON", UDim2.new(0, 10, 0, 88), panel, CONFIG.Monster.Color)
+local btnLoot = createButton("ToggleLoot", "LOOT & ITEM: ON", UDim2.new(0, 10, 0, 122), panel, CONFIG.Loot.Color)
+local btnNPC = createButton("ToggleNPC", "NPC: ON", UDim2.new(0, 10, 0, 156), panel, CONFIG.NPC.Color)
+local btnCollect = createButton("ToggleCollect", "AUTO COLLECT: OFF", UDim2.new(0, 10, 0, 190), panel, Color3.fromRGB(60, 60, 70))
+local btnCollectColor = Color3.fromRGB(255, 150, 50)
 
 local function animateButton(btn, size, pos)
     TweenService:Create(btn, TweenInfo.new(0.08), {Size = size, Position = pos}):Play()
@@ -158,12 +215,28 @@ local function updateUI()
     btnLoot.BackgroundColor3 = State.Loot and CONFIG.Loot.Color or Color3.fromRGB(60, 60, 70)
     btnNPC.Text = "NPC ESP: " .. (State.NPC and "ON" or "OFF")
     btnNPC.BackgroundColor3 = State.NPC and CONFIG.NPC.Color or Color3.fromRGB(60, 60, 70)
+    
+    btnCollect.Text = "AUTO COLLECT: " .. (State.AutoCollect and "ON" or "OFF")
+    btnCollect.BackgroundColor3 = State.AutoCollect and btnCollectColor or Color3.fromRGB(60, 60, 70)
+    
     panel.Visible = State.UI
 end
 
-btnMonster.MouseButton1Click:Connect(function() State.Monster = not State.Monster; updateUI(); animateButton(btnMonster, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 78)); task.wait(0.08); animateButton(btnMonster, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 76)) end)
-btnLoot.MouseButton1Click:Connect(function() State.Loot = not State.Loot; updateUI(); animateButton(btnLoot, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 112)); task.wait(0.08); animateButton(btnLoot, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 110)) end)
-btnNPC.MouseButton1Click:Connect(function() State.NPC = not State.NPC; updateUI(); animateButton(btnNPC, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 146)); task.wait(0.08); animateButton(btnNPC, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 144)) end)
+local function toggleAutoCollect()
+    State.AutoCollect = not State.AutoCollect
+    updateUI()
+    if State.AutoCollect then
+        task.spawn(function()
+            triggerAutoCollect()
+            updateUI() -- Perbarui antarmuka setelah fungsi selesai
+        end)
+    end
+end
+
+btnMonster.MouseButton1Click:Connect(function() State.Monster = not State.Monster; updateUI(); animateButton(btnMonster, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 90)); task.wait(0.08); animateButton(btnMonster, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 88)) end)
+btnLoot.MouseButton1Click:Connect(function() State.Loot = not State.Loot; updateUI(); animateButton(btnLoot, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 124)); task.wait(0.08); animateButton(btnLoot, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 122)) end)
+btnNPC.MouseButton1Click:Connect(function() State.NPC = not State.NPC; updateUI(); animateButton(btnNPC, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 158)); task.wait(0.08); animateButton(btnNPC, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 156)) end)
+btnCollect.MouseButton1Click:Connect(function() toggleAutoCollect(); animateButton(btnCollect, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 192)); task.wait(0.08); animateButton(btnCollect, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 190)) end)
 minBtn.MouseButton1Click:Connect(function() State.UI = not State.UI; updateUI() end)
 
 local drag, dragStart, startPos = false, nil, nil
@@ -176,7 +249,8 @@ table.insert(connections, UserInputService.InputBegan:Connect(function(input, gp
     if input.KeyCode == Enum.KeyCode.F5 then State.Monster = not State.Monster; updateUI()
     elseif input.KeyCode == Enum.KeyCode.F6 then State.Loot = not State.Loot; updateUI()
     elseif input.KeyCode == Enum.KeyCode.F7 then State.NPC = not State.NPC; updateUI()
-    elseif input.KeyCode == Enum.KeyCode.F8 then State.UI = not State.UI; updateUI() end
+    elseif input.KeyCode == Enum.KeyCode.F8 then State.UI = not State.UI; updateUI()
+    elseif input.KeyCode == Enum.KeyCode.F9 then toggleAutoCollect() end
 end))
 
 table.insert(connections, RunService.Heartbeat:Connect(function()

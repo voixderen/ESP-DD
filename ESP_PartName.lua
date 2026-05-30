@@ -32,7 +32,7 @@ local LocalPlayer      = Players.LocalPlayer
 local CONFIG = {
     -- Path folder monster di workspace
     -- Ganti jika nama folder berbeda di game kamu
-    MonsterFolderPath = {"Game System", "Monster"},
+    MonsterFolderPath = {"GameSystem", "Monsters"},
 
     -- Filter nama part (kosong = ESP semua part di folder monster)
     -- Tidak perlu diisi karena semua isi folder = monster

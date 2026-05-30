@@ -1,6 +1,6 @@
 -- ================================================================
 --   ESP Framework Core & Auto-Collect
---   Version : 6.2.0
+--   Version : 6.3.0
 -- ================================================================
 
 if _G.ESP_RUNNING then
@@ -13,12 +13,13 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 
 local CONFIG = {
     Monster = { Paths = {{"GameSystem", "Monsters"}}, Color = Color3.fromRGB(255, 50, 50) },
-    Loot = { Paths = {{"GameSystem", "Loots", "World"}, {"GameSystem", "InteractiveItem"}}, Color = Color3.fromRGB(50, 255, 50) },
+    Loot = { Paths = {{"GameSystem", "Loots", "World"}, {"Loots", "World"}, {"GameSystem", "InteractiveItem"}}, Color = Color3.fromRGB(50, 255, 50) },
     NPC = { Paths = {{"GameSystem", "NPCModels"}}, Color = Color3.fromRGB(50, 100, 255) },
     MaxBackpackItems = 50
 }
@@ -79,31 +80,45 @@ local function triggerAutoCollect()
     end
 
     local initialCFrame = hrp.CFrame
-    local elevatorFolder = workspace:FindFirstChild("电梯")
 
-    if elevatorFolder then
-        local foodGathering = elevatorFolder:FindFirstChild("FoodGathering")
-        if foodGathering then
-            for _, loot in ipairs(foodGathering:GetChildren()) do
-                if not State.AutoCollect then break end
-                
-                local pivot = loot:GetPivot()
-                hrp.CFrame = pivot
-                task.wait(0.3) 
-                
-                for _, prompt in ipairs(loot:GetDescendants()) do
-                    if prompt:IsA("ProximityPrompt") then
-                        fireproximityprompt(prompt)
-                        task.wait(0.2)
-                    end
-                end
-
-                task.wait(0.2)
-
-                if isBackpackFull() then
-                    break
+    local function scanFolderAndCollect(folder)
+        for _, loot in ipairs(folder:GetChildren()) do
+            if not State.AutoCollect then return true end
+            
+            hrp.CFrame = loot:GetPivot()
+            task.wait(0.3) 
+            
+            local promptFound = false
+            for _, desc in ipairs(loot:GetDescendants()) do
+                if desc:IsA("ProximityPrompt") then
+                    pcall(function()
+                        fireproximityprompt(desc)
+                    end)
+                    promptFound = true
+                    task.wait(0.2)
                 end
             end
+
+            if not promptFound then
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                task.wait(0.1)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                task.wait(0.2)
+            end
+
+            if isBackpackFull() then
+                return true 
+            end
+        end
+        return false
+    end
+
+    for _, pathArr in ipairs(CONFIG.Loot.Paths) do
+        if not State.AutoCollect then break end
+        local folder = getPath(pathArr)
+        if folder then
+            local shouldBreak = scanFolderAndCollect(folder)
+            if shouldBreak then break end
         end
     end
 
@@ -193,7 +208,7 @@ minBtn.Size, minBtn.Position, minBtn.BackgroundColor3, minBtn.TextColor3, minBtn
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
 
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 48), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster | F6: Loot / Item\nF7: NPC | F8: Hide UI\nF9: Auto Collect", Enum.TextXAlignment.Left, panel
+infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 48), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster | F6: Loot & Item\nF7: NPC | F8: Hide UI\nF9: Auto Collect", Enum.TextXAlignment.Left, panel
 
 local btnMonster = createButton("ToggleMonster", "MONSTER: ON", UDim2.new(0, 10, 0, 88), panel, CONFIG.Monster.Color)
 local btnLoot = createButton("ToggleLoot", "LOOT & ITEM: ON", UDim2.new(0, 10, 0, 122), panel, CONFIG.Loot.Color)

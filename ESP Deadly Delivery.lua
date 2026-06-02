@@ -1,4 +1,3 @@
-```lua
 -- ================================================================
 --   ESP Framework (Kerangka Kerja ESP) Core & Auto-Collect (Kumpul Otomatis)
 --   Version : 7.2.0

@@ -1,10 +1,11 @@
+```lua
 -- ================================================================
---   ESP Framework (Kerangka Kerja ESP) Core & Auto-Collect (Kumpul Otomatis)
---   Version : 7.2.0
+--   ESP Framework Core & Auto Collect (Kumpul Otomatis)
+--   Version : 7.3.0
 -- ================================================================
 
-if _G.ESP_RUNNING then
-    if _G.ESP_CLEANUP then pcall(_G.ESP_CLEANUP) end
+if type(_G.ESP_CLEANUP) == "function" then
+    pcall(_G.ESP_CLEANUP)
 end
 _G.ESP_RUNNING = true
 
@@ -162,31 +163,32 @@ local function triggerAutoCollect()
     local function scanFolderAndCollect(folder)
         for _, loot in ipairs(folder:GetChildren()) do
             if not State.AutoCollect then return true end
-            if isItemSafeInBase(loot) then continue end
             
-            local lootPivot = loot:GetPivot()
-            hrp.CFrame = lootPivot
-            
-            Camera.CameraType = Enum.CameraType.Scriptable
-            Camera.CFrame = CFrame.lookAt(lootPivot.Position + Vector3.new(0, 15, 0), lootPivot.Position)
-            
-            task.wait(0.3) 
-            
-            for _, desc in ipairs(loot:GetDescendants()) do
-                if desc:IsA("ProximityPrompt") then
-                    pcall(function() fireproximityprompt(desc) end)
-                    task.wait(0.1)
+            if not isItemSafeInBase(loot) then
+                local lootPivot = loot:GetPivot()
+                hrp.CFrame = lootPivot
+                
+                Camera.CameraType = Enum.CameraType.Scriptable
+                Camera.CFrame = CFrame.lookAt(lootPivot.Position + Vector3.new(0, 15, 0), lootPivot.Position)
+                
+                task.wait(0.3) 
+                
+                for _, desc in ipairs(loot:GetDescendants()) do
+                    if desc:IsA("ProximityPrompt") then
+                        pcall(function() fireproximityprompt(desc) end)
+                        task.wait(0.1)
+                    end
                 end
-            end
 
-            pressKey(Enum.KeyCode.E)
-            task.wait(0.2)
+                pressKey(Enum.KeyCode.E)
+                task.wait(0.2)
 
-            handleWalkSpeedDrop(hrp, humanoid, foodGathering)
+                handleWalkSpeedDrop(hrp, humanoid, foodGathering)
 
-            local backpack = LocalPlayer:FindFirstChild("Backpack")
-            if backpack and #backpack:GetChildren() >= CONFIG.MaxBackpackItems then
-                verifyAndEmptyBackpack(hrp, foodGathering)
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                if backpack and #backpack:GetChildren() >= CONFIG.MaxBackpackItems then
+                    verifyAndEmptyBackpack(hrp, foodGathering)
+                end
             end
         end
         return false
@@ -278,19 +280,19 @@ local patch = Instance.new("Frame")
 patch.Size, patch.Position, patch.BackgroundColor3, patch.BorderSizePixel, patch.Parent = UDim2.new(1, 0, 0, 10), UDim2.new(0, 0, 1, -10), Color3.fromRGB(28, 28, 35), 0, titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size, titleLabel.Position, titleLabel.BackgroundTransparency, titleLabel.TextColor3, titleLabel.TextSize, titleLabel.Font, titleLabel.Text, titleLabel.TextXAlignment, titleLabel.Parent = UDim2.new(1, -40, 1, 0), UDim2.new(0, 12, 0, 0), 1, Color3.fromRGB(220, 220, 230), 13, Enum.Font.GothamBold, "⬡  ESP Control Panel (Panel Kendali ESP)", Enum.TextXAlignment.Left, titleBar
+titleLabel.Size, titleLabel.Position, titleLabel.BackgroundTransparency, titleLabel.TextColor3, titleLabel.TextSize, titleLabel.Font, titleLabel.Text, titleLabel.TextXAlignment, titleLabel.Parent = UDim2.new(1, -40, 1, 0), UDim2.new(0, 12, 0, 0), 1, Color3.fromRGB(220, 220, 230), 13, Enum.Font.GothamBold, "⬡  Panel (Panel) ESP", Enum.TextXAlignment.Left, titleBar
 
 local minBtn = Instance.new("TextButton")
 minBtn.Size, minBtn.Position, minBtn.BackgroundColor3, minBtn.TextColor3, minBtn.TextSize, minBtn.Font, minBtn.Text, minBtn.BorderSizePixel, minBtn.Parent = UDim2.new(0, 26, 0, 26), UDim2.new(1, -30, 0, 3), Color3.fromRGB(220, 60, 60), Color3.fromRGB(255, 255, 255), 14, Enum.Font.GothamBold, "−", 0, titleBar
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
 
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 48), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster | F6: Loot & Item\nF7: NPC | F8: Hide UI\nF9: Auto Collect (Kumpul Otomatis)", Enum.TextXAlignment.Left, panel
+infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 48), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster (Monster) | F6: Loot (Rampasan)\nF7: NPC | F8: Hide (Sembunyikan)\nF9: Auto Collect (Kumpul Otomatis)", Enum.TextXAlignment.Left, panel
 
 local btnMonster = createButton("ToggleMonster", "MONSTER: ON", UDim2.new(0, 10, 0, 88), panel, CONFIG.Monster.Color)
-local btnLoot = createButton("ToggleLoot", "LOOT & ITEM: ON", UDim2.new(0, 10, 0, 122), panel, CONFIG.Loot.Color)
+local btnLoot = createButton("ToggleLoot", "LOOT (RAMPASAN): ON", UDim2.new(0, 10, 0, 122), panel, CONFIG.Loot.Color)
 local btnNPC = createButton("ToggleNPC", "NPC: ON", UDim2.new(0, 10, 0, 156), panel, CONFIG.NPC.Color)
-local btnCollect = createButton("ToggleCollect", "AUTO COLLECT: OFF", UDim2.new(0, 10, 0, 190), panel, Color3.fromRGB(60, 60, 70))
+local btnCollect = createButton("ToggleCollect", "AUTO COLLECT (KUMPUL OTOMATIS): OFF", UDim2.new(0, 10, 0, 190), panel, Color3.fromRGB(60, 60, 70))
 local btnCollectColor = Color3.fromRGB(255, 150, 50)
 
 local function animateButton(btn, size, pos)
@@ -298,14 +300,14 @@ local function animateButton(btn, size, pos)
 end
 
 local function updateUI()
-    btnMonster.Text = "MONSTER ESP: " .. (State.Monster and "ON" or "OFF")
+    btnMonster.Text = "MONSTER (MONSTER): " .. (State.Monster and "ON" or "OFF")
     btnMonster.BackgroundColor3 = State.Monster and CONFIG.Monster.Color or Color3.fromRGB(60, 60, 70)
-    btnLoot.Text = "LOOT & ITEM ESP: " .. (State.Loot and "ON" or "OFF")
+    btnLoot.Text = "LOOT (RAMPASAN): " .. (State.Loot and "ON" or "OFF")
     btnLoot.BackgroundColor3 = State.Loot and CONFIG.Loot.Color or Color3.fromRGB(60, 60, 70)
-    btnNPC.Text = "NPC ESP: " .. (State.NPC and "ON" or "OFF")
+    btnNPC.Text = "NPC: " .. (State.NPC and "ON" or "OFF")
     btnNPC.BackgroundColor3 = State.NPC and CONFIG.NPC.Color or Color3.fromRGB(60, 60, 70)
     
-    btnCollect.Text = "AUTO COLLECT: " .. (State.AutoCollect and "ON" or "OFF")
+    btnCollect.Text = "AUTO COLLECT (KUMPUL OTOMATIS): " .. (State.AutoCollect and "ON" or "OFF")
     btnCollect.BackgroundColor3 = State.AutoCollect and btnCollectColor or Color3.fromRGB(60, 60, 70)
     panel.Visible = State.UI
 end

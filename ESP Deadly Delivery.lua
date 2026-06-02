@@ -1,6 +1,7 @@
+```lua
 -- ================================================================
---   ESP Framework Core & Auto-Collect
---   Version : 7.0.0 (Complete Workflow)
+--   ESP Framework (Kerangka Kerja ESP) Core & Auto-Collect (Kumpul Otomatis)
+--   Version : 7.2.0
 -- ================================================================
 
 if _G.ESP_RUNNING then
@@ -25,8 +26,12 @@ local CONFIG = {
     MaxBackpackItems = 5,
     SafeZoneRadius = 25,
     Blacklist = {
-        ["NamaBarangAtauID1"] = true,
-        ["NamaBarangAtauID2"] = true
+        ["10233"] = true,
+        ["10201"] = true,
+        ["19999"] = true,
+        ["10211"] = true,
+        ["10234"] = true,
+        ["10241"] = true
     }
 }
 
@@ -168,19 +173,15 @@ local function triggerAutoCollect()
             
             task.wait(0.3) 
             
-            local promptFound = false
             for _, desc in ipairs(loot:GetDescendants()) do
                 if desc:IsA("ProximityPrompt") then
                     pcall(function() fireproximityprompt(desc) end)
-                    promptFound = true
-                    task.wait(0.2)
+                    task.wait(0.1)
                 end
             end
 
-            if not promptFound then
-                pressKey(Enum.KeyCode.E)
-                task.wait(0.2)
-            end
+            pressKey(Enum.KeyCode.E)
+            task.wait(0.2)
 
             handleWalkSpeedDrop(hrp, humanoid, foodGathering)
 
@@ -278,14 +279,14 @@ local patch = Instance.new("Frame")
 patch.Size, patch.Position, patch.BackgroundColor3, patch.BorderSizePixel, patch.Parent = UDim2.new(1, 0, 0, 10), UDim2.new(0, 0, 1, -10), Color3.fromRGB(28, 28, 35), 0, titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size, titleLabel.Position, titleLabel.BackgroundTransparency, titleLabel.TextColor3, titleLabel.TextSize, titleLabel.Font, titleLabel.Text, titleLabel.TextXAlignment, titleLabel.Parent = UDim2.new(1, -40, 1, 0), UDim2.new(0, 12, 0, 0), 1, Color3.fromRGB(220, 220, 230), 13, Enum.Font.GothamBold, "⬡  ESP Control Panel", Enum.TextXAlignment.Left, titleBar
+titleLabel.Size, titleLabel.Position, titleLabel.BackgroundTransparency, titleLabel.TextColor3, titleLabel.TextSize, titleLabel.Font, titleLabel.Text, titleLabel.TextXAlignment, titleLabel.Parent = UDim2.new(1, -40, 1, 0), UDim2.new(0, 12, 0, 0), 1, Color3.fromRGB(220, 220, 230), 13, Enum.Font.GothamBold, "⬡  ESP Control Panel (Panel Kendali ESP)", Enum.TextXAlignment.Left, titleBar
 
 local minBtn = Instance.new("TextButton")
 minBtn.Size, minBtn.Position, minBtn.BackgroundColor3, minBtn.TextColor3, minBtn.TextSize, minBtn.Font, minBtn.Text, minBtn.BorderSizePixel, minBtn.Parent = UDim2.new(0, 26, 0, 26), UDim2.new(1, -30, 0, 3), Color3.fromRGB(220, 60, 60), Color3.fromRGB(255, 255, 255), 14, Enum.Font.GothamBold, "−", 0, titleBar
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
 
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 48), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster | F6: Loot & Item\nF7: NPC | F8: Hide UI\nF9: Auto Collect", Enum.TextXAlignment.Left, panel
+infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 48), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster | F6: Loot & Item\nF7: NPC | F8: Hide UI\nF9: Auto Collect (Kumpul Otomatis)", Enum.TextXAlignment.Left, panel
 
 local btnMonster = createButton("ToggleMonster", "MONSTER: ON", UDim2.new(0, 10, 0, 88), panel, CONFIG.Monster.Color)
 local btnLoot = createButton("ToggleLoot", "LOOT & ITEM: ON", UDim2.new(0, 10, 0, 122), panel, CONFIG.Loot.Color)
@@ -354,3 +355,5 @@ _G.ESP_CLEANUP = function()
     if screenGui then pcall(function() screenGui:Destroy() end) end
     _G.ESP_RUNNING = false
 end
+
+```

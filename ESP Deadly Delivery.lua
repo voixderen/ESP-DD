@@ -1,10 +1,10 @@
 -- ================================================================
---   ESP Framework Core & Auto-Collect
---   Version : 7.0.0 (Complete Workflow)
+--   ESP Framework (Kerangka Kerja ESP) Core & Auto Collect (Kumpul Otomatis)
+--   Version : 8.0.0
 -- ================================================================
 
-if _G.ESP_RUNNING then
-    if _G.ESP_CLEANUP then pcall(_G.ESP_CLEANUP) end
+if type(_G.ESP_CLEANUP) == "function" then
+    pcall(_G.ESP_CLEANUP)
 end
 _G.ESP_RUNNING = true
 
@@ -14,6 +14,7 @@ local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
@@ -25,8 +26,12 @@ local CONFIG = {
     MaxBackpackItems = 5,
     SafeZoneRadius = 25,
     Blacklist = {
-        ["NamaBarangAtauID1"] = true,
-        ["NamaBarangAtauID2"] = true
+        ["10233"] = true,
+        ["10201"] = true,
+        ["19999"] = true,
+        ["10211"] = true,
+        ["10234"] = true,
+        ["10241"] = true
     }
 }
 
@@ -158,35 +163,32 @@ local function triggerAutoCollect()
     local function scanFolderAndCollect(folder)
         for _, loot in ipairs(folder:GetChildren()) do
             if not State.AutoCollect then return true end
-            if isItemSafeInBase(loot) then continue end
             
-            local lootPivot = loot:GetPivot()
-            hrp.CFrame = lootPivot
-            
-            Camera.CameraType = Enum.CameraType.Scriptable
-            Camera.CFrame = CFrame.lookAt(lootPivot.Position + Vector3.new(0, 15, 0), lootPivot.Position)
-            
-            task.wait(0.3) 
-            
-            local promptFound = false
-            for _, desc in ipairs(loot:GetDescendants()) do
-                if desc:IsA("ProximityPrompt") then
-                    pcall(function() fireproximityprompt(desc) end)
-                    promptFound = true
-                    task.wait(0.2)
+            if not isItemSafeInBase(loot) then
+                local lootPivot = loot:GetPivot()
+                hrp.CFrame = lootPivot
+                
+                Camera.CameraType = Enum.CameraType.Scriptable
+                Camera.CFrame = CFrame.lookAt(lootPivot.Position + Vector3.new(0, 15, 0), lootPivot.Position)
+                
+                task.wait(0.3) 
+                
+                for _, desc in ipairs(loot:GetDescendants()) do
+                    if desc:IsA("ProximityPrompt") then
+                        pcall(function() fireproximityprompt(desc) end)
+                        task.wait(0.1)
+                    end
                 end
-            end
 
-            if not promptFound then
                 pressKey(Enum.KeyCode.E)
                 task.wait(0.2)
-            end
 
-            handleWalkSpeedDrop(hrp, humanoid, foodGathering)
+                handleWalkSpeedDrop(hrp, humanoid, foodGathering)
 
-            local backpack = LocalPlayer:FindFirstChild("Backpack")
-            if backpack and #backpack:GetChildren() >= CONFIG.MaxBackpackItems then
-                verifyAndEmptyBackpack(hrp, foodGathering)
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                if backpack and #backpack:GetChildren() >= CONFIG.MaxBackpackItems then
+                    verifyAndEmptyBackpack(hrp, foodGathering)
+                end
             end
         end
         return false
@@ -203,6 +205,37 @@ local function triggerAutoCollect()
     Camera.CameraType = Enum.CameraType.Custom
     if hrp then hrp.CFrame = initialCFrame end
     State.AutoCollect = false
+end
+
+local function triggerAutoRedeem()
+    local configCode = ReplicatedStorage:FindFirstChild("Config") and ReplicatedStorage.Config:FindFirstChild("Code")
+    local settingFolder = ReplicatedStorage:FindFirstChild("Client") and ReplicatedStorage.Client:FindFirstChild("UI") and ReplicatedStorage.Client.UI:FindFirstChild("Setting")
+
+    if configCode and settingFolder then
+        local success, codes = pcall(function() return require(configCode) end)
+        if success and type(codes) == "table" then
+            for _, codeData in pairs(codes) do
+                if type(codeData) == "table" and codeData.code then
+                    local codeStr = tostring(codeData.code)
+                    
+                    if settingFolder:IsA("RemoteEvent") then
+                        settingFolder:FireServer(codeStr)
+                    elseif settingFolder:IsA("RemoteFunction") then
+                        pcall(function() settingFolder:InvokeServer(codeStr) end)
+                    else
+                        for _, obj in ipairs(settingFolder:GetDescendants()) do
+                            if obj:IsA("RemoteEvent") then
+                                obj:FireServer(codeStr)
+                            elseif obj:IsA("RemoteFunction") then
+                                pcall(function() obj:InvokeServer(codeStr) end)
+                            end
+                        end
+                    end
+                    task.wait(0.5)
+                end
+            end
+        end
+    end
 end
 
 local function updateESP()
@@ -264,7 +297,7 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Name, screenGui.ResetOnSpawn, screenGui.ZIndexBehavior, screenGui.Parent = "ESP_UI", false, Enum.ZIndexBehavior.Sibling, guiParent
 
 local panel = Instance.new("Frame")
-panel.Name, panel.Size, panel.Position, panel.BackgroundColor3, panel.BorderSizePixel, panel.Active, panel.Parent = "Panel", UDim2.new(0, 240, 0, 255), UDim2.new(0, 20, 0.5, -127), Color3.fromRGB(18, 18, 24), 0, true, screenGui
+panel.Name, panel.Size, panel.Position, panel.BackgroundColor3, panel.BorderSizePixel, panel.Active, panel.Parent = "Panel", UDim2.new(0, 240, 0, 290), UDim2.new(0, 20, 0.5, -145), Color3.fromRGB(18, 18, 24), 0, true, screenGui
 Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 10)
 
 local stroke = Instance.new("UIStroke")
@@ -278,19 +311,20 @@ local patch = Instance.new("Frame")
 patch.Size, patch.Position, patch.BackgroundColor3, patch.BorderSizePixel, patch.Parent = UDim2.new(1, 0, 0, 10), UDim2.new(0, 0, 1, -10), Color3.fromRGB(28, 28, 35), 0, titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size, titleLabel.Position, titleLabel.BackgroundTransparency, titleLabel.TextColor3, titleLabel.TextSize, titleLabel.Font, titleLabel.Text, titleLabel.TextXAlignment, titleLabel.Parent = UDim2.new(1, -40, 1, 0), UDim2.new(0, 12, 0, 0), 1, Color3.fromRGB(220, 220, 230), 13, Enum.Font.GothamBold, "⬡  ESP Control Panel", Enum.TextXAlignment.Left, titleBar
+titleLabel.Size, titleLabel.Position, titleLabel.BackgroundTransparency, titleLabel.TextColor3, titleLabel.TextSize, titleLabel.Font, titleLabel.Text, titleLabel.TextXAlignment, titleLabel.Parent = UDim2.new(1, -40, 1, 0), UDim2.new(0, 12, 0, 0), 1, Color3.fromRGB(220, 220, 230), 13, Enum.Font.GothamBold, "⬡  Panel (Panel) ESP", Enum.TextXAlignment.Left, titleBar
 
 local minBtn = Instance.new("TextButton")
 minBtn.Size, minBtn.Position, minBtn.BackgroundColor3, minBtn.TextColor3, minBtn.TextSize, minBtn.Font, minBtn.Text, minBtn.BorderSizePixel, minBtn.Parent = UDim2.new(0, 26, 0, 26), UDim2.new(1, -30, 0, 3), Color3.fromRGB(220, 60, 60), Color3.fromRGB(255, 255, 255), 14, Enum.Font.GothamBold, "−", 0, titleBar
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
 
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 48), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster | F6: Loot & Item\nF7: NPC | F8: Hide UI\nF9: Auto Collect", Enum.TextXAlignment.Left, panel
+infoLabel.Size, infoLabel.Position, infoLabel.BackgroundTransparency, infoLabel.TextColor3, infoLabel.TextSize, infoLabel.Font, infoLabel.Text, infoLabel.TextXAlignment, infoLabel.Parent = UDim2.new(1, -20, 0, 60), UDim2.new(0, 10, 0, 36), 1, Color3.fromRGB(150, 150, 160), 10, Enum.Font.Gotham, "F5: Monster (Monster) | F6: Loot (Rampasan)\nF7: NPC | F8: Hide (Sembunyikan)\nF9: Auto Collect (Kumpul Otomatis)\nF10: Auto Redeem (Tukar Otomatis)", Enum.TextXAlignment.Left, panel
 
-local btnMonster = createButton("ToggleMonster", "MONSTER: ON", UDim2.new(0, 10, 0, 88), panel, CONFIG.Monster.Color)
-local btnLoot = createButton("ToggleLoot", "LOOT & ITEM: ON", UDim2.new(0, 10, 0, 122), panel, CONFIG.Loot.Color)
-local btnNPC = createButton("ToggleNPC", "NPC: ON", UDim2.new(0, 10, 0, 156), panel, CONFIG.NPC.Color)
-local btnCollect = createButton("ToggleCollect", "AUTO COLLECT: OFF", UDim2.new(0, 10, 0, 190), panel, Color3.fromRGB(60, 60, 70))
+local btnMonster = createButton("ToggleMonster", "MONSTER (MONSTER): ON", UDim2.new(0, 10, 0, 98), panel, CONFIG.Monster.Color)
+local btnLoot = createButton("ToggleLoot", "LOOT (RAMPASAN): ON", UDim2.new(0, 10, 0, 132), panel, CONFIG.Loot.Color)
+local btnNPC = createButton("ToggleNPC", "NPC: ON", UDim2.new(0, 10, 0, 166), panel, CONFIG.NPC.Color)
+local btnCollect = createButton("ToggleCollect", "AUTO COLLECT (KUMPUL OTOMATIS): OFF", UDim2.new(0, 10, 0, 200), panel, Color3.fromRGB(60, 60, 70))
+local btnRedeem = createButton("ToggleRedeem", "AUTO REDEEM (TUKAR OTOMATIS)", UDim2.new(0, 10, 0, 234), panel, Color3.fromRGB(150, 50, 255))
 local btnCollectColor = Color3.fromRGB(255, 150, 50)
 
 local function animateButton(btn, size, pos)
@@ -298,14 +332,14 @@ local function animateButton(btn, size, pos)
 end
 
 local function updateUI()
-    btnMonster.Text = "MONSTER ESP: " .. (State.Monster and "ON" or "OFF")
+    btnMonster.Text = "MONSTER (MONSTER): " .. (State.Monster and "ON" or "OFF")
     btnMonster.BackgroundColor3 = State.Monster and CONFIG.Monster.Color or Color3.fromRGB(60, 60, 70)
-    btnLoot.Text = "LOOT & ITEM ESP: " .. (State.Loot and "ON" or "OFF")
+    btnLoot.Text = "LOOT (RAMPASAN): " .. (State.Loot and "ON" or "OFF")
     btnLoot.BackgroundColor3 = State.Loot and CONFIG.Loot.Color or Color3.fromRGB(60, 60, 70)
-    btnNPC.Text = "NPC ESP: " .. (State.NPC and "ON" or "OFF")
+    btnNPC.Text = "NPC: " .. (State.NPC and "ON" or "OFF")
     btnNPC.BackgroundColor3 = State.NPC and CONFIG.NPC.Color or Color3.fromRGB(60, 60, 70)
     
-    btnCollect.Text = "AUTO COLLECT: " .. (State.AutoCollect and "ON" or "OFF")
+    btnCollect.Text = "AUTO COLLECT (KUMPUL OTOMATIS): " .. (State.AutoCollect and "ON" or "OFF")
     btnCollect.BackgroundColor3 = State.AutoCollect and btnCollectColor or Color3.fromRGB(60, 60, 70)
     panel.Visible = State.UI
 end
@@ -323,10 +357,11 @@ local function toggleAutoCollect()
     end
 end
 
-btnMonster.MouseButton1Click:Connect(function() State.Monster = not State.Monster; updateUI(); animateButton(btnMonster, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 90)); task.wait(0.08); animateButton(btnMonster, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 88)) end)
-btnLoot.MouseButton1Click:Connect(function() State.Loot = not State.Loot; updateUI(); animateButton(btnLoot, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 124)); task.wait(0.08); animateButton(btnLoot, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 122)) end)
-btnNPC.MouseButton1Click:Connect(function() State.NPC = not State.NPC; updateUI(); animateButton(btnNPC, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 158)); task.wait(0.08); animateButton(btnNPC, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 156)) end)
-btnCollect.MouseButton1Click:Connect(function() toggleAutoCollect(); animateButton(btnCollect, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 192)); task.wait(0.08); animateButton(btnCollect, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 190)) end)
+btnMonster.MouseButton1Click:Connect(function() State.Monster = not State.Monster; updateUI(); animateButton(btnMonster, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 100)); task.wait(0.08); animateButton(btnMonster, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 98)) end)
+btnLoot.MouseButton1Click:Connect(function() State.Loot = not State.Loot; updateUI(); animateButton(btnLoot, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 134)); task.wait(0.08); animateButton(btnLoot, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 132)) end)
+btnNPC.MouseButton1Click:Connect(function() State.NPC = not State.NPC; updateUI(); animateButton(btnNPC, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 168)); task.wait(0.08); animateButton(btnNPC, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 166)) end)
+btnCollect.MouseButton1Click:Connect(function() toggleAutoCollect(); animateButton(btnCollect, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 202)); task.wait(0.08); animateButton(btnCollect, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 200)) end)
+btnRedeem.MouseButton1Click:Connect(function() animateButton(btnRedeem, UDim2.new(1, -28, 0, 24), UDim2.new(0, 14, 0, 236)); task.wait(0.08); animateButton(btnRedeem, UDim2.new(1, -20, 0, 28), UDim2.new(0, 10, 0, 234)); task.spawn(triggerAutoRedeem) end)
 minBtn.MouseButton1Click:Connect(function() State.UI = not State.UI; updateUI() end)
 
 local drag, dragStart, startPos = false, nil, nil
@@ -340,7 +375,8 @@ table.insert(connections, UserInputService.InputBegan:Connect(function(input, gp
     elseif input.KeyCode == Enum.KeyCode.F6 then State.Loot = not State.Loot; updateUI()
     elseif input.KeyCode == Enum.KeyCode.F7 then State.NPC = not State.NPC; updateUI()
     elseif input.KeyCode == Enum.KeyCode.F8 then State.UI = not State.UI; updateUI()
-    elseif input.KeyCode == Enum.KeyCode.F9 then toggleAutoCollect() end
+    elseif input.KeyCode == Enum.KeyCode.F9 then toggleAutoCollect()
+    elseif input.KeyCode == Enum.KeyCode.F10 then task.spawn(triggerAutoRedeem) end
 end))
 
 table.insert(connections, RunService.Heartbeat:Connect(updateESP))
